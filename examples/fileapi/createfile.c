@@ -33,7 +33,7 @@ int main() {
     __CreateFileA create_file = (__CreateFileA)GetProcAddress(hModule, "CreateFileA");
     __WriteFile write_file = (__WriteFile)GetProcAddress(hModule, "WriteFile");
     // 创建文件
-    HANDLE *hf = create_file(
+    HANDLE hf = create_file(
         "myCreate.txt", /* File name with ascii*/ 
         GENERIC_READ | GENERIC_WRITE, /* File access */
         0, /* No share */
@@ -42,10 +42,24 @@ int main() {
         FILE_ATTRIBUTE_NORMAL, 
         NULL
     );
+    if(hf == INVALID_HANDLE_VALUE) return 0;
     // 写入 Hello World!
     char *buf = "Hello World!";
     BOOL e = write_file(hf, buf, 12, NULL, NULL);
     // 释放模块
     FreeLibrary(hModule);
+    
+    // 不加载也能用？
+    HANDLE bf = CreateFileA(
+        "myCreate1.txt", /* File name with ascii*/ 
+        GENERIC_READ | GENERIC_WRITE, /* File access */
+        0, /* No share */
+        NULL,
+        CREATE_ALWAYS, /* Overwrite when file existed */
+        FILE_ATTRIBUTE_NORMAL, 
+        NULL
+    );
+    WriteFile(bf, buf, 12, NULL, NULL);
+    
     return 0;
 }

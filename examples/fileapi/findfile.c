@@ -31,9 +31,8 @@ int main() {
     __FindFirstFileA find_first_file = (__FindFirstFileA)GetProcAddress(hModule, "FindFirstFileA");
     __FindNextFileA find_next_file = (__FindNextFileA)GetProcAddress(hModule, "FindNextFileA");
     __FindClose find_close = (__FindClose)GetProcAddress(hModule, "__FindClose");
-
     WIN32_FIND_DATAA FindFileData;
-    char name[10] = ".\\*.*";
+    char name[100] = ".\\*.*";
     // 它要求传进去的是个已经分配了空间的指针
     puts("Call FindFirstFileA");
     HANDLE hFindFile = find_first_file(name, &FindFileData);
