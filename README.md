@@ -2,6 +2,14 @@
 
 用于软件安全实验。
 
+编写一个PE文件传染程序infect.exe，功能要求如下：
+
+1. infect.exe运行后，向同目录下的某个Windows可执行程序（下称目标程序，建议找一个免安装的绿色程序，以方便测试。），植入“病毒载荷”代码。
+2. infect.exe不能重复传染目标程序。
+3. 【初级任务】目标程序被植入“病毒载荷”后，具备如下行为：一旦执行，就会在其同目录下查找是否有.txt文件，如果有，则任选一个，将其内容复制到另一个位置，文件名为本组某个同学的学号。
+4. 【进阶任务】在完成初级任务的情况下，增加如下病毒行为：在其同目录下查找是否有.exe文件，如果有，则传染之。
+5. 初级任务和进阶任务，任选一项完成即可。如果选择的是进阶任务，且实现了预期功能，则本次实验成绩90分起评。
+
 examples 是调用模块的示例。
 
 待办:
@@ -62,5 +70,10 @@ typedef DWORD (WINAPI *__SetFilePointer) (
     _In_ LONG lDistanceToMove,
     _Inout_opt_ PLONG lpDistanceToMoveHigh,
     _In_ DWORD dwMoveMethod
+);
+
+// handleapi.h
+BOOL CloseHandle(
+  [in] HANDLE hObject
 );
 ```
