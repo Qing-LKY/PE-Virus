@@ -23,7 +23,7 @@ examples 是调用模块的示例。
 ```c
 // 由于获取文件夹下的所有文件
 // FindFirstFileA
-typedef HANDLE (WINAPI *__FindFIrstFileA) (
+typedef HANDLE (WINAPI *__FindFirstFileA) (
     _In_ LPCSTR lpFileName,
     _Out_ LPWIN32_FIND_DATAA lpFindFileData
 );
