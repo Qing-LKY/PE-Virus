@@ -33,7 +33,7 @@ int main() {
     __CreateFileA create_file = (__CreateFileA)GetProcAddress(hModule, "CreateFileA");
     __WriteFile write_file = (__WriteFile)GetProcAddress(hModule, "WriteFile");
     // 创建文件
-    HANDLE hf = create_file(
+    HANDLE hf = (create_file)(
         "myCreate.txt", /* File name with ascii*/ 
         GENERIC_READ | GENERIC_WRITE, /* File access */
         0, /* No share */
