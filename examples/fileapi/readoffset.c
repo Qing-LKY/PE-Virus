@@ -41,8 +41,11 @@ int main() {
     SetFilePointer(hf, 0x10, NULL, FILE_BEGIN);
     char buf[1 << 14];
     DWORD tmp;
-    ReadFile(hf, buf, 1 << 14, &tmp, NULL);
+    ReadFile(hf, buf, 0x10, &tmp, NULL);
+    long x = SetFilePointer(hf, 0, NULL, FILE_CURRENT);
     puts(buf);
+    printf("%x\n", x);
     CloseHandle(hf);
+    printf("%d\n", (int)sizeof(IMAGE_OPTIONAL_HEADER32));
     return 0;
 }
