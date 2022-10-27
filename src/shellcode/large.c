@@ -4,8 +4,8 @@
 #include <stdio.h>
 
 #pragma code_seg(".large")
-
 #define DEBUG
+
 
 typedef struct _IMAGE_EXPORT_ADDRESS_TABLE_ {
     union {
@@ -45,13 +45,14 @@ __forceinline DWORD FindFunction(
 
     PIMAGE_EXPORT_DIRECTORY d = DemandModuleBase
         + pOptHdr->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
-
+#ifdef DEBUG
     printf("ExportTable at: %p, name: %s\n", d, DemandModuleBase + d->Name);
     for (int i = 0; i < 5; i++) {
         for (int j = 0; j < 16; j++)
             printf("%02x, ", *((BYTE *)d + i * 16 + j));
         printf("\n");
     }
+#endif
     PIMAGE_EXPORT_ADDRESS_TABLE pAddr = DemandModuleBase + d->AddressOfFunctions;
     PIMAGE_EXPORT_NAME_POINTER ppName = DemandModuleBase + d->AddressOfNames;
     PIMAGE_EXPORT_ORDINAL_TABLE pOrd = DemandModuleBase + d->AddressOfNameOrdinals;
@@ -60,23 +61,22 @@ __forceinline DWORD FindFunction(
             // Matched
             WORD ord = pOrd[i];
             DWORD FuncVA = DemandModuleBase + (pAddr + ord)->dwExportRVA;
+#ifdef DEBUG
             printf("Found %s at %#x\n", pcFuncName, FuncVA);
+#endif
             return FuncVA;
         }
     }
     return 0;
 }
 
-void ShellCode() {
-
+__forceinline DWORD FindBase(PWCHAR DemandModuleName) {
     // Find ImageBase of kernel32.dll
     PEB* peb;
     __asm {
         mov eax, fs:[30h]   // fs points to teb
         mov peb, eax
     }
-    WCHAR DemandModuleName[] = {L'K', L'E', L'R', L'N', L'E', L'L',
-        L'3', L'2', L'.', L'D', L'L', L'L'};
     size_t DemandModuleNameLen = sizeof(DemandModuleName) / sizeof(WCHAR);  
     DWORD DemandModuleBase = 0;
     PPEB_LDR_DATA pLdr = peb->Ldr;
@@ -97,11 +97,11 @@ void ShellCode() {
             if (s[k] != DemandModuleName[k])
                 break;
             if (k == DemandModuleNameLen - 1) {
-#ifdef DEBUG
-#endif // DEBUG
                 // found module
                 DemandModuleBase = (DWORD)Module->DllBase;
+#ifdef DEBUG
                 printf("Found kernel32.dll ImageBase: %#x\n", DemandModuleBase);
+#endif // DEBUG
             }
         }
         if (e == LdrDataListHead.Blink) break;
@@ -113,8 +113,15 @@ void ShellCode() {
         printf("\n");
     }
 #endif
-    
+    return DemandModuleBase;
+}
+
+void ShellCode() {
+
+    WCHAR DemandModuleName[] = {L'K', L'E', L'R', L'N', L'E', L'L',
+        L'3', L'2', L'.', L'D', L'L', L'L'};
     CHAR s[] = {'F', 'i', 'n', 'd', 'C', 'l', 'o', 's', 'e', '\0'};
+    DWORD DemandModuleBase = FindBase(DemandModuleName);
     DWORD dwFuncVA = FindFunction(s, DemandModuleBase);
 }
 
