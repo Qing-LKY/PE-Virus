@@ -60,6 +60,8 @@ int main() {
         NULL
     );
     WriteFile(bf, buf, 12, NULL, NULL);
-    
+    CHAR str[114];
+    int n = GetFinalPathNameByHandleA(bf, str, 114, 0x8);   
+    puts(str); 
     return 0;
 }
