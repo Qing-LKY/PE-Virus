@@ -22,17 +22,46 @@ typedef WORD *PIMAGE_EXPORT_ORDINAL_TABLE;
 
 __forceinline DWORD FindFunction(
         PCHAR pcFuncName,
-        PIMAGE_EXPORT_NAME_POINTER pName,
-        PIMAGE_EXPORT_ADDRESS_TABLE pAddr,
-        PIMAGE_EXPORT_ORDINAL_TABLE pOrd,
-        SIZE_T len
+        DWORD DemandModuleBase
     ) {
-    for (SIZE_T i = 0; i < len; i++) {
-        if (strcmp(*pName, pcFuncName) == 0) {
-            printf("%s\n", *pName);
+    // Find address of EXPORT Directory Table
+    PIMAGE_DOS_HEADER pDosHdr =  DemandModuleBase;
+    PIMAGE_FILE_HEADER pFileHdr = DemandModuleBase
+        + pDosHdr->e_lfanew + 0x4; /* 0x4 for signature */
+    PIMAGE_OPTIONAL_HEADER32 pOptHdr = (BYTE *)pFileHdr + sizeof(IMAGE_FILE_HEADER);
+#ifdef DEBUG
+    puts("File Header:");
+    for (int j = 0; j < sizeof(IMAGE_FILE_HEADER); j++)
+        printf("%02x, ", *((BYTE *)pFileHdr + j));
+    printf("\n");
+
+    puts("Optional Header:");
+    for (int i = 0; i < 5; i++) {
+        for (int j = 0; j < 16; j++)
+            printf("%02x, ", *((BYTE *)pOptHdr + i * 16 + j));
+        printf("\n");
+    }
+#endif
+
+    PIMAGE_EXPORT_DIRECTORY d = DemandModuleBase
+        + pOptHdr->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+
+    printf("ExportTable at: %p, name: %s\n", d, DemandModuleBase + d->Name);
+    for (int i = 0; i < 5; i++) {
+        for (int j = 0; j < 16; j++)
+            printf("%02x, ", *((BYTE *)d + i * 16 + j));
+        printf("\n");
+    }
+    PIMAGE_EXPORT_ADDRESS_TABLE pAddr = DemandModuleBase + d->AddressOfFunctions;
+    PIMAGE_EXPORT_NAME_POINTER ppName = DemandModuleBase + d->AddressOfNames;
+    PIMAGE_EXPORT_ORDINAL_TABLE pOrd = DemandModuleBase + d->AddressOfNameOrdinals;
+    for (SIZE_T i = 0; i < d->NumberOfNames; i++) {
+        if (strcmp(DemandModuleBase + ppName[i], pcFuncName) == 0) {
             // Matched
             WORD ord = pOrd[i];
-            return pAddr[ord].dwExportRVA;
+            DWORD FuncVA = DemandModuleBase + (pAddr + ord)->dwExportRVA;
+            printf("Found %s at %#x\n", pcFuncName, FuncVA);
+            return FuncVA;
         }
     }
     return 0;
@@ -69,32 +98,24 @@ void ShellCode() {
                 break;
             if (k == DemandModuleNameLen - 1) {
 #ifdef DEBUG
-                puts("Found kernel32.dll ImageBase");
 #endif // DEBUG
                 // found module
                 DemandModuleBase = (DWORD)Module->DllBase;
+                printf("Found kernel32.dll ImageBase: %#x\n", DemandModuleBase);
             }
         }
         if (e == LdrDataListHead.Blink) break;
     }
-    
-    // Find address of EXPORT Directory Table
-    PIMAGE_DOS_HEADER pDosHdr =  DemandModuleBase;
-    PIMAGE_FILE_HEADER pFileHdr = (DemandModuleBase + pDosHdr->e_lfanew);
-    PIMAGE_OPTIONAL_HEADER32 pOptHdr = pFileHdr + sizeof(IMAGE_FILE_HEADER);
-
-    IMAGE_DATA_DIRECTORY ExportTableDirectory =
-        pOptHdr->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
-
-    PIMAGE_EXPORT_DIRECTORY d = DemandModuleBase + ExportTableDirectory.VirtualAddress;
-    PIMAGE_EXPORT_ADDRESS_TABLE pAddr = DemandModuleBase + d->AddressOfFunctions;
-    PIMAGE_EXPORT_NAME_POINTER pName = DemandModuleBase + d->AddressOfNames;
-    PIMAGE_EXPORT_ORDINAL_TABLE pOrd = DemandModuleBase + d->AddressOfNameOrdinals;
-    CHAR s[] = {'F', 'i', 'n', 'd', 'C', 'l', 'o', 's', 'e'};
-    DWORD dwFuncVA = FindFunction(s, pName, pAddr, pOrd, d->NumberOfNames);
 #ifdef DEBUG
-    printf("%d\n", dwFuncVA);
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 16; j++)
+            printf("%02x, ", *(BYTE *)(DemandModuleBase + i * 16 + j));
+        printf("\n");
+    }
 #endif
+    
+    CHAR s[] = {'F', 'i', 'n', 'd', 'C', 'l', 'o', 's', 'e', '\0'};
+    DWORD dwFuncVA = FindFunction(s, DemandModuleBase);
 }
 
 int main() {
