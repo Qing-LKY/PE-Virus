@@ -77,3 +77,11 @@ BOOL CloseHandle(
   [in] HANDLE hObject
 );
 ```
+
+# 编译并运行监听端 Docker
+
+```bash
+cd src/server
+docker build -t virus-server:1 .
+docker run -v /path/to/log/result.txt:/result.txt --name virus-server virus-server
+```
