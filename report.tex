@@ -1,0 +1,99 @@
+\documentclass[UTF8]{ctexart}
+\ctexset{section/format=\Large\bfseries}
+
+% Packages
+% font
+\usepackage{fontspec}
+\setmonofont{Fira Code}[
+Contextuals=Alternate  % Activate the calt feature
+]
+% tikz
+\usepackage{tikz}
+\usepackage{graphicx}
+% listing
+\usepackage{listings}
+\usepackage{lstfiracode}
+% margins
+\usepackage{geometry}
+\geometry{a4paper,  scale=0.7}
+% page header and footer
+\usepackage{fancyhdr}
+\usepackage{float}
+\pagestyle{fancy}
+\rhead{}
+
+% For table alignment
+\usepackage{array}
+
+\let\oldparagraph\paragraph
+\renewcommand{\paragraph}[1]{\oldparagraph{#1} \mbox{}\\}
+
+\lstset{
+	columns=fixed,
+	style=FiraCodeStyle,
+	basicstyle=\small\ttfamily,
+	backgroundcolor=\color[RGB]{244,244,244}, 		  % 设定背景颜色：浅晦涩，近透明
+	keywordstyle=\color[RGB]{40,40,255},					 % 设定关键字颜色
+	commentstyle=\color[RGB]{0,96,96},                        % 设置代码注释的格式
+	stringstyle=\color[RGB]{128,0,0},                                % 设置字符串格式
+}
+
+\begin{document}
+	\title{PE病毒实验}
+	\author{}
+	\date{\vspace{-8ex}}
+	\maketitle
+	\begin{table}[h]
+		\centering
+		
+		\begin{tabular}{|p{2.5cm}<{\centering}|p{4.5cm}<{\centering}|p{3cm}<{\centering}|p{2.5cm}<{\centering}|}
+			\hline
+			\textbf{课程名称} & 软件安全         & \textbf{实验日期} & 2022.10.29   \\ \hline
+			\textbf{姓名}   & \textbf{学号}   & \textbf{专业}   & \textbf{班级} \\ \hline
+			李心杨           & 2020302181022 & 信息安全          & 2           \\
+			林锟扬           & 2020302181032 & 信息安全          & 2           \\
+			上官景威      &  2020302181069 & 信息安全          & 3           \\ \hline
+		\end{tabular}
+	\end{table}
+	\tableofcontents
+	\pagebreak
+	
+	\section{实验目的及实验内容}
+	\subsection{实验目的}
+	加深理解PE文件格式，掌握基本PE病毒的编写技术。
+	\subsection{实验任务}
+	编写一个PE文件传染程序infect.exe，功能要求如下：
+	\begin{enumerate}
+		\item
+		infect.exe运行后，向同目录下的某个Windows可执行程序（下称目标程序，建议找一个免安装的绿色程序，以方便测试。），植入“病毒载荷”代码。
+		\item infect.exe不能重复传染目标程序。
+		
+		\item【初级任务】目标程序被植入“病毒载荷”后，具备如下行为：一旦执行，就会在其同目录下查找是否有.txt文件，如果有，则任选一个，将其内容复制到另一个位置，文件名为本组某个同学的学号。
+		\item【进阶任务】在完成初级任务的情况下，增加如下病毒行为：在其同目录下查找是否有.exe文件，如果有，则传染之。
+		\item【自定义任务】在进阶任务的基础上，增加后门，支持远程执行powershell指令。
+	\end{enumerate}
+	\section{项目说明}
+	\subsection{功能概述}
+	
+	\subsection{编译及测试方式}
+	本项目在Windows上开发，使用msvc作为编译器，编译项目需要下载Windows
+	SDK。实验过程中用到的编译器及库版本如表~\ref{tab:environment} 所示。
+	\begin{table}[h]
+		\label{tab:environment}
+		\centering
+		\begin{tabular}{|c|c|}
+			\hline
+			软件名&版本信息 \\ \hline 
+			Windows 10& 20H2 OS Build 19042.1706 \\
+			cl&19.33.31630(x86) \\
+			\hline
+		\end{tabular}
+	\end{table}
+	\section{原理及代码解析}
+	\subsection{劫持程序入口}
+	\subsection{获取动态库函数地址}
+	\subsection{使用WinAPI实现传染}
+	\subsection{自我复制}
+	\subsection{远程指令执行}
+	\section{总结}
+\end{document}
