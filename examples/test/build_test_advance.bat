@@ -1,6 +1,7 @@
 @echo off
 rmdir /S /Q test_dir
 mkdir test_dir
+echo "Advance v1: Just infecting\n"
 echo "Build virus..."
 cl /c /GS- /Ob1 test_advance.c
 link /entry:ShellCode /subsystem:console test_advance.obj

