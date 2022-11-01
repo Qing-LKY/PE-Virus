@@ -5,22 +5,34 @@
 编译方式:
 
 ```sh
-cl /c /Gs- shellcode.c
+cl /c /GS- /Ob1 shellcode.c
 link -dll shellcode.obj
+```
+
+也可以编译为 exe:
+
+```sh
+cl /c /GS- /Ob1 shellcode.c
+link /entry:ShellCode /subsystem:console shellcode.obj
 ```
 
 然后使用 PE_Bear 提取对应节的二进制数据，用 dump.exe 导出为 C 语言数组。
 
-tiny.c: 获取 BaseImage，然后跳转回原本的 entry (跳转目的由感染程序控制)
+## tiny
 
-## 二进制荷载代码转换工具
+tiny.c: 获取 BaseImage，然后跳转回原本的 entry
 
-编译方式:
+无传染性。需要使用 infect.c 进行装载。
+
+修改了 entry，新添了段，并回到原本的程序中。
 
 ```sh
-cl dump.c
+# 编译为 DLL 文件
+cl /c /GS- /Ob1 tiny.c
+link -dll 
+# 编译为
 ```
 
-直接运行: 输入二进制数据文件名，输出 C 语言代码。
+## junior
 
-带参数运行: 例如 `.\dump.exe shellcode.bin`，输出目标的 C 语言代码。
+junior.c

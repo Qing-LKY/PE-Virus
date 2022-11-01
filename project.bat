@@ -6,13 +6,15 @@ set src=%cd%\src\shellcode
 set tool=%cd%\src\tools
 
 :help
+echo "0: help"
 echo "1: clear exe"
 echo "2: build all (include 3, 4)"
 echo "3: build tools"
 echo "4: complie shellcode"
 echo "5: test junior"
-echo "6: quit"
-echo "7: help"
+echo "6: test advance"
+echo "9: quit"
+echo "others: help"
 
 :interact
 cd %root%
@@ -28,6 +30,8 @@ if %opt% equ 1 (
 ) else if %opt% equ 5 (
     goto test_junior
 ) else if %opt% equ 6 (
+    goto test_advance2
+) else if %opt% equ 9 (
     goto quit
 ) else (
     goto help
@@ -82,6 +86,22 @@ echo "Test string!" > %test%\copy_me.txt
 cd %test%
 (echo hello.exe) | .\infect.exe
 .\hello.exe
+dumpbin hello.exe
+goto interact
+
+:test_advance2
+if exist %test% rmdir /S /Q %test%
+mkdir %test%
+rem Advance2 can run itself
+cd %src%
+link /entry:ShellCode /subsystem:console advance2.obj
+copy advance2.exe %test%\virus.exe
+copy %root%\blank.exe.bak %test%\hello.exe
+cd %test%
+.\virus.exe
+echo "Test string!" > %test%\copy_me.txt
+.\hello.exe
+dumpbin hello.exe
 goto interact
 
 :quit
