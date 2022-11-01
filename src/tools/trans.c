@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
     // calc
     int n = BUF_SIZE, jmp_off = 0;
     while(buf[n - 1] == 0) n--;
-    for(int i = 0; i < n - 4; i++) {
+    for(int i = n - 5; i >= 0; i--) {
         DWORD now = *(DWORD *)(buf + i);
         if(now == 0x11223344) {
             jmp_off = i;
