@@ -96,12 +96,14 @@ rem Advance2 can run itself
 cd %src%
 link /entry:ShellCode /subsystem:console advance2.obj
 copy advance2.exe %test%\virus.exe
-copy %root%\blank.exe.bak %test%\hello.exe
+copy %root%\blank.exe.bak %test%\hello1.exe
 cd %test%
 .\virus.exe
+copy %root%\blank.exe.bak %test%\hello2.exe
+.\hello1.exe
 echo "Test string!" > %test%\copy_me.txt
-.\hello.exe
-dumpbin hello.exe
+.\hello2.exe
+dumpbin hello2.exe
 goto interact
 
 :quit
