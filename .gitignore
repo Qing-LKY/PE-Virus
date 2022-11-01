@@ -6,5 +6,6 @@ build
 *.obj
 *.pdb
 *.ilk
+*.bin
 
-.test/
+test/

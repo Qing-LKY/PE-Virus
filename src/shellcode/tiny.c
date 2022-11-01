@@ -4,10 +4,6 @@
 
 #pragma code_seg(".tiny")
 
-/*
- cl -c tiny.c
- link -dll tiny.obj
-*/
 void ShellCode() {
     PBYTE peb;
     __asm {
