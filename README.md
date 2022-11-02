@@ -4,11 +4,9 @@
 
 ## 项目构成
 
-项目中包含两个独立的部分:
-
 - 基础病毒: 含不具传染性的 junior，和具有传染性的 advance。
 
-- 后门病毒: 基于 advance 的某个版本，添加了创建后门进程的功能。
+- 后门病毒: 在 advance 的基础上，实现了在宿主机上执行远端命令，并返回执行结果的功能。
 
 examples 中为实验过程中尝试和测试时编写的代码，与项目无关。
 
@@ -49,7 +47,7 @@ D:.
   - tiny.c: 最简单的荷载代码，**无功能，无传染性，只有跳转回程序入口的语句**。
   - junior.c: **不具传染性**。可以**加载使用 kernel32 中的函数**。效果是检测同目录下的 txt 文件并复制一份。
   - advance.c: 真正的**病毒框架**，无特殊功能，但具有自我复制、传染的能力，不需要 infect.c 承载可自行运行。
-  - advance2.c: 在 advance 的基础上添加了 junior 的功能。
+  - advance2.c: 在 advance 的基础上添加了 junior 的功能。通过定义 CONFIG_BACKDOOR，可以在宿主机上创建一个后门程序。
 - src/tools
   - build_tools.bat: 用于编译本目录下的程序，会被 project.bat 调用。
   - dump.c: **PE 节提取工具**。将 PE section 提取为 .bin 文件。
@@ -153,10 +151,22 @@ dumpbin /section:.advance /disasm advance.exe > advance.txt
 
 ### 功能介绍
 
-### 编译并运行监听端 Docker
+在 advance2 的基础上，增加了一个后门函数 `Backdoor()`，这个函数通过 `CreateProcessA()` 调用 PowerShell，实现远端执行指令的功能。
+
+在编译 `advance2.c` 时添加 `/DCONFIG_BACKDOOR` 定义 `CONFIG_BACKDOOR` 这个宏，即可启用后门功能。
+
+同时，`src/server` 文件夹中还提供了一个服务端程序，可以用于发布待执行的指令，并接受执行结果。
+
+### 编译并运行服务端 Docker
+
+服务端使用 Python 编写，为了保证环境的一致性，我们提供了一个 Dockerfile。使用以下命令可以编译并运行服务端：
 
 ```bash
 cd src/server
 docker build -t virus-server:1 .
+touch /path/to/log/result.txt
 docker run -v /path/to/log/result.txt:/result.txt --name virus-server virus-server
 ```
+需要注意的是，这里的 /path/to/log 需要改为存放执行结果的文件。
+
+另外，由于服务端的地址是写在 `advance2.c` 里面的 PowerShell 脚本里的，如果想要使用自定义的服务器，需要修改脚本中的地址，并重新编译 `advance2.c`。
