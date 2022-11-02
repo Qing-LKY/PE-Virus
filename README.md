@@ -18,27 +18,27 @@ examples 中为实验过程中尝试和测试时编写的代码，与项目无�
 
 以下的目录和文件，隶属于**基础病毒**部分。
 
-D:.
-│  blank.exe.bak
-│  clear.bat
-│  project.bat
-│
-├─src
+D:.  
+│  blank.exe.bak  
+│  clear.bat  
+│  project.bat  
+│  
+├─src  
 │  │  
-│  ├─shellcode
-│  │      advance.c
-│  │      advance2.c
-│  │      junior.c
-│  │      tiny.c
-│  │
-│  └─tools
-│          build_tools.bat
-│          dump.c
-│          format.c
-│          infect.c
-│          shellcode.c
-│          trans.c
-└─test
+│  ├─shellcode  
+│  │      advance.c  
+│  │      advance2.c  
+│  │      junior.c  
+│  │      tiny.c  
+│  │  
+│  └─tools  
+│          build_tools.bat  
+│          dump.c  
+│          format.c  
+│          infect.c  
+│          shellcode.c  
+│          trans.c  
+└─test  
 
 ### 文件功能
 
