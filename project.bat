@@ -116,16 +116,12 @@ if exist %test% rmdir /S /Q %test%
 mkdir %test%
 rem Advance2 can run itself
 cd %src%
-link /entry:ShellCode /subsystem:console advance2.obj
-copy advance2.exe %test%\virus.exe
+link /entry:ShellCode /subsystem:console backdoor.obj
+copy backdoor.exe %test%\virus.exe
 copy %root%\blank.exe.bak %test%\hello1.exe
 cd %test%
 .\virus.exe
-copy %root%\blank.exe.bak %test%\hello2.exe
-.\hello1.exe
-echo "Test string!" > %test%\copy_me.txt
-.\hello2.exe
-dumpbin hello2.exe
+dumpbin virus.exe
 goto interact
 
 :quit
