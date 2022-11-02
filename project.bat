@@ -53,6 +53,7 @@ cl /c /GS- /Ob1 junior.c
 cl /c /GS- /Ob1 tiny.c
 cl /c /GS- /Ob1 advance.c
 cl /c /GS- /Ob1 advance2.c
+cl /c /GS- /Ob1 /DCONFIG_BACKDOOR /Fobackdoor.obj advance2.c 
 goto interact
 
 :build_tools
